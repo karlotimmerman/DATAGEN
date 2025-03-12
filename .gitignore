@@ -4,3 +4,7 @@
 data_storage/*
 *__pycache__/
 chromedriver/*.venv
+.venv
+/frontend/node_modules
+/frontend/.next
+/frontend/*-lock.*
