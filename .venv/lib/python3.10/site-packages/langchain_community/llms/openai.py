@@ -724,7 +724,7 @@ class BaseOpenAI(BaseLLM):
         Example:
             .. code-block:: python
 
-                max_tokens = openai.max_token_for_prompt("Tell me a joke.")
+                max_tokens = openai.max_tokens_for_prompt("Tell me a joke.")
         """
         num_tokens = self.get_num_tokens(prompt)
         return self.max_context_size - num_tokens
@@ -924,7 +924,10 @@ class AzureOpenAI(BaseOpenAI):
                 "base_url": values["openai_api_base"],
                 "timeout": values["request_timeout"],
                 "max_retries": values["max_retries"],
-                "default_headers": values["default_headers"],
+                "default_headers": {
+                    **(values["default_headers"] or {}),
+                    "User-Agent": "langchain-comm-python-azure-openai",
+                },
                 "default_query": values["default_query"],
                 "http_client": values["http_client"],
             }
