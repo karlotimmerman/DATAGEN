@@ -3,4 +3,4 @@
 *.csv
 data_storage/*
 *__pycache__/
-chromedriver/*
+chromedriver/*.venv
