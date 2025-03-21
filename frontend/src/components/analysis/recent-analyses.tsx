@@ -1,28 +1,30 @@
-"use client";
+'use client';
 
 import { useEffect, useState } from 'react';
+
 import { format } from 'date-fns';
-import { FileText, AlertCircle, CheckCircle, Clock, Loader2 } from 'lucide-react';
+import { AlertCircle, CheckCircle, Clock, FileText, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { AnalysisJob, AnalysisStatus } from '@/types/analysis';
+
 import { clientLogger } from '@/lib/logger';
 
 // Status icon mapping
 const StatusIcon = ({ status }: { status: AnalysisStatus }) => {
   switch (status) {
     case 'completed':
-      return <CheckCircle className="h-4 w-4 text-green-500" />;
+      return <CheckCircle className='h-4 w-4 text-green-500' />;
     case 'failed':
-      return <AlertCircle className="h-4 w-4 text-red-500" />;
+      return <AlertCircle className='h-4 w-4 text-red-500' />;
     case 'running':
-      return <Loader2 className="h-4 w-4 animate-spin text-blue-500" />;
+      return <Loader2 className='h-4 w-4 animate-spin text-blue-500' />;
     case 'queued':
-      return <Clock className="h-4 w-4 text-yellow-500" />;
+      return <Clock className='h-4 w-4 text-yellow-500' />;
     case 'cancelled':
-      return <AlertCircle className="h-4 w-4 text-gray-500" />;
+      return <AlertCircle className='h-4 w-4 text-gray-500' />;
     default:
-      return <FileText className="h-4 w-4" />;
+      return <FileText className='h-4 w-4' />;
   }
 };
 
@@ -80,53 +82,50 @@ export function RecentAnalyses() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-8">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      <div className='flex items-center justify-center py-8'>
+        <Loader2 className='h-6 w-6 animate-spin text-muted-foreground' />
       </div>
     );
   }
 
   if (analyses.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-8 text-center">
-        <FileText className="h-10 w-10 text-muted-foreground mb-2" />
-        <p className="text-muted-foreground">No recent analyses found</p>
+      <div className='flex flex-col items-center justify-center py-8 text-center'>
+        <FileText className='h-10 w-10 text-muted-foreground mb-2' />
+        <p className='text-muted-foreground'>No recent analyses found</p>
       </div>
     );
   }
 
   return (
-    <div className="space-y-4">
+    <div className='space-y-4'>
       {analyses.map((analysis) => (
         <div
           key={analysis.job_id}
-          className="flex items-center justify-between rounded-lg border p-3 hover:bg-accent/50 transition-colors cursor-pointer"
+          className='flex items-center justify-between rounded-lg border p-3 hover:bg-accent/50 transition-colors cursor-pointer'
         >
-          <div className="flex items-center gap-3">
+          <div className='flex items-center gap-3'>
             <StatusIcon status={analysis.status} />
             <div>
-              <p className="font-medium">
+              <p className='font-medium'>
                 Analysis #{analysis.job_id}
                 {analysis.result?.summary ? `: ${analysis.result.summary.substring(0, 30)}...` : ''}
               </p>
-              <p className="text-xs text-muted-foreground">
+              <p className='text-xs text-muted-foreground'>
                 Started: {format(new Date(analysis.started_at), 'MMM d, h:mm a')}
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className='flex items-center gap-2'>
             {analysis.status === 'running' && (
-              <div className="w-24 h-2 bg-muted rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-primary"
-                  style={{ width: `${analysis.progress}%` }}
-                />
+              <div className='w-24 h-2 bg-muted rounded-full overflow-hidden'>
+                <div className='h-full bg-primary' style={{ width: `${analysis.progress}%` }} />
               </div>
             )}
-            <span className="text-xs font-medium capitalize">{analysis.status}</span>
+            <span className='text-xs font-medium capitalize'>{analysis.status}</span>
           </div>
         </div>
       ))}
     </div>
   );
-} 
+}

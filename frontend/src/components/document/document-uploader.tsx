@@ -1,14 +1,15 @@
-"use client";
+'use client';
 
 import { useState } from 'react';
+
+import { FileText, Loader2, Upload, X } from 'lucide-react';
 import { useDropzone } from 'react-dropzone';
-import { FileText, Upload, X, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+
 import { clientLogger } from '@/lib/logger';
 
 export function DocumentUploader() {
@@ -35,7 +36,7 @@ export function DocumentUploader() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (files.length === 0) {
       toast.error('Please upload at least one file');
       return;
@@ -52,7 +53,7 @@ export function DocumentUploader() {
       // In a real app, this would be an API call to upload files and start analysis
       // For now, we'll simulate a successful upload
       await new Promise((resolve) => setTimeout(resolve, 2000));
-      
+
       toast.success('Analysis started successfully');
       setFiles([]);
       setInstructions('');
@@ -65,15 +66,15 @@ export function DocumentUploader() {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form onSubmit={handleSubmit} className='space-y-4'>
       <div>
-        <Label htmlFor="instructions">Analysis Instructions</Label>
+        <Label htmlFor='instructions'>Analysis Instructions</Label>
         <Textarea
-          id="instructions"
-          placeholder="Describe what you want to analyze in these documents..."
+          id='instructions'
+          placeholder='Describe what you want to analyze in these documents...'
           value={instructions}
           onChange={(e) => setInstructions(e.target.value)}
-          className="mt-1.5"
+          className='mt-1.5'
           rows={3}
           required
         />
@@ -86,42 +87,42 @@ export function DocumentUploader() {
         }`}
       >
         <input {...getInputProps()} />
-        <div className="flex flex-col items-center justify-center gap-2">
-          <Upload className="h-8 w-8 text-muted-foreground" />
-          <p className="text-sm font-medium">
+        <div className='flex flex-col items-center justify-center gap-2'>
+          <Upload className='h-8 w-8 text-muted-foreground' />
+          <p className='text-sm font-medium'>
             {isDragActive ? 'Drop files here' : 'Drag & drop files here, or click to select'}
           </p>
-          <p className="text-xs text-muted-foreground">
+          <p className='text-xs text-muted-foreground'>
             Supports PDF, TXT, CSV, XLSX, and DOCX files
           </p>
         </div>
       </div>
 
       {files.length > 0 && (
-        <div className="space-y-2">
+        <div className='space-y-2'>
           <Label>Selected Files</Label>
-          <div className="max-h-40 overflow-y-auto space-y-2 rounded-lg border p-2">
+          <div className='max-h-40 overflow-y-auto space-y-2 rounded-lg border p-2'>
             {files.map((file, index) => (
               <div
                 key={`${file.name}-${index}`}
-                className="flex items-center justify-between rounded-md bg-muted/50 p-2 text-sm"
+                className='flex items-center justify-between rounded-md bg-muted/50 p-2 text-sm'
               >
-                <div className="flex items-center gap-2 truncate">
-                  <FileText className="h-4 w-4 flex-shrink-0" />
-                  <span className="truncate">{file.name}</span>
-                  <span className="text-xs text-muted-foreground">
+                <div className='flex items-center gap-2 truncate'>
+                  <FileText className='h-4 w-4 flex-shrink-0' />
+                  <span className='truncate'>{file.name}</span>
+                  <span className='text-xs text-muted-foreground'>
                     ({(file.size / 1024).toFixed(1)} KB)
                   </span>
                 </div>
                 <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="h-6 w-6"
+                  type='button'
+                  variant='ghost'
+                  size='icon'
+                  className='h-6 w-6'
                   onClick={() => removeFile(index)}
                 >
-                  <X className="h-4 w-4" />
-                  <span className="sr-only">Remove file</span>
+                  <X className='h-4 w-4' />
+                  <span className='sr-only'>Remove file</span>
                 </Button>
               </div>
             ))}
@@ -129,10 +130,10 @@ export function DocumentUploader() {
         </div>
       )}
 
-      <Button type="submit" disabled={isUploading || files.length === 0 || !instructions.trim()}>
+      <Button type='submit' disabled={isUploading || files.length === 0 || !instructions.trim()}>
         {isUploading ? (
           <>
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            <Loader2 className='mr-2 h-4 w-4 animate-spin' />
             Uploading...
           </>
         ) : (

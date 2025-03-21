@@ -1,5 +1,6 @@
-import { clientLogger } from './logger';
 import { AnalysisJob } from '@/types/analysis';
+
+import { clientLogger } from './logger';
 
 export class WebSocketController {
   private static instance: WebSocketController;
@@ -18,19 +19,19 @@ export class WebSocketController {
   public connectToJob(jobId: string, onUpdate: (update: AnalysisJob) => void): () => void {
     const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL || 'ws://localhost:8000';
     const wsUrl = `${SOCKET_URL}/api/socket/${jobId}`;
-    
+
     // Store handler
     this.jobHandlers.set(jobId, onUpdate);
-    
+
     // Create WebSocket if not exists
     if (!this.socket || this.socket.readyState !== WebSocket.OPEN) {
       clientLogger.info(`Connecting to WebSocket: ${wsUrl}`);
       this.socket = new WebSocket(wsUrl);
-      
+
       this.socket.onopen = () => {
         clientLogger.info('WebSocket connected');
       };
-      
+
       this.socket.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data) as AnalysisJob;
@@ -42,20 +43,20 @@ export class WebSocketController {
           clientLogger.error('Error parsing WebSocket message', { error });
         }
       };
-      
+
       this.socket.onerror = (error) => {
         clientLogger.error('WebSocket error', { error });
       };
-      
+
       this.socket.onclose = () => {
         clientLogger.info('WebSocket closed');
       };
     }
-    
+
     // Return cleanup function
     return () => {
       this.jobHandlers.delete(jobId);
-      
+
       // If no more handlers, close the socket
       if (this.jobHandlers.size === 0 && this.socket) {
         this.socket.close();
@@ -63,4 +64,4 @@ export class WebSocketController {
       }
     };
   }
-} 
+}

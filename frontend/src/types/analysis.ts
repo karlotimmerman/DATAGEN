@@ -2,7 +2,7 @@
  * Analysis request and response type definitions
  */
 
-export type AnalysisStatus = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled';
+export type AnalysisStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
 
 export interface AnalysisJob {
   job_id: string;
@@ -32,6 +32,7 @@ export interface AnalysisResult {
   visualizations?: AnalysisVisualization[];
   code_blocks?: AnalysisCodeBlock[];
   report_sections?: AnalysisReportSection[];
+  metadata?: Record<string, unknown>;
 }
 
 export interface AnalysisVisualization {
@@ -39,9 +40,10 @@ export interface AnalysisVisualization {
   title: string;
   description?: string;
   file_path: string;
-  type: 'chart' | 'graph' | 'table' | 'image';
+  type: 'chart' | 'graph' | 'table' | 'image' | 'plot';
   data?: Record<string, unknown>;
   created_at: string;
+  metadata?: Record<string, unknown>;
 }
 
 export interface AnalysisCodeBlock {
@@ -50,6 +52,7 @@ export interface AnalysisCodeBlock {
   content: string;
   language: string;
   created_at: string;
+  metadata?: Record<string, unknown>;
 }
 
 export interface AnalysisReportSection {
@@ -58,6 +61,8 @@ export interface AnalysisReportSection {
   content: string;
   order: number;
   created_at: string;
+  type?: 'heading' | 'paragraph' | 'bulletList' | 'numberList' | 'quote' | 'visualization' | 'table';
+  metadata?: Record<string, unknown>;
 }
 
 export interface AnalysisRequest {
@@ -66,10 +71,24 @@ export interface AnalysisRequest {
   additional_params?: Record<string, unknown>;
 }
 
-export interface ApiResponse<T> {
+/**
+ * Response types for API endpoints
+ */
+export interface ApiResponse {
   success: boolean;
-  data?: T;
+  message?: string;
   error?: string;
+}
+
+export interface JobResponse extends ApiResponse {
+  job?: AnalysisJob;
+}
+
+export interface StatusResponse extends ApiResponse {
+  status?: AnalysisStatus;
+  progress?: number;
+  logs?: string[];
+  job?: AnalysisJob;
 }
 
 /**

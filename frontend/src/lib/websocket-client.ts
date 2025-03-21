@@ -1,156 +1,260 @@
 import { clientLogger } from './logger';
-import { AnalysisJob } from '@/types/analysis';
 
-type MessageHandler = (data: AnalysisJob) => void;
-type ErrorHandler = (error: Event) => void;
-type ConnectionHandler = () => void;
-
+/**
+ * WebSocketClient class for handling real-time communications
+ */
 export class WebSocketClient {
   private socket: WebSocket | null = null;
+  private isConnected = false;
+  private reconnectTimer: NodeJS.Timeout | null = null;
+  private pingTimer: NodeJS.Timeout | null = null;
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 5;
-  private reconnectTimeout: NodeJS.Timeout | null = null;
-  private reconnectDelay = 1000; // Start with 1s, will increase exponentially
-  private isClosing = false; // Flag to prevent reconnecting when intentionally closed
-  private jobId: string;
-  private url: string;
-  
-  private messageHandler: MessageHandler;
-  private errorHandler: ErrorHandler;
-  private openHandler: ConnectionHandler;
-  private closeHandler: ConnectionHandler;
-  
-  constructor(
-    jobId: string, 
-    messageHandler: MessageHandler,
-    errorHandler?: ErrorHandler,
-    openHandler?: ConnectionHandler,
-    closeHandler?: ConnectionHandler
-  ) {
-    this.jobId = jobId;
-    this.messageHandler = messageHandler;
-    this.errorHandler = errorHandler || this.defaultErrorHandler;
-    this.openHandler = openHandler || this.defaultOpenHandler;
-    this.closeHandler = closeHandler || this.defaultCloseHandler;
-    
-    // Determine WebSocket URL from environment or fallback
-    const wsBase = typeof window !== 'undefined' 
-      ? (process.env.NEXT_PUBLIC_SOCKET_URL || `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}`)
-      : '';
-    this.url = `${wsBase}/api/socket/${jobId}`;
-  }
-  
-  // Connect to WebSocket server
-  public connect(): void {
-    if (this.socket) {
-      this.disconnect();
+  private url: string = '';
+  private pingInterval = 30000; // 30 seconds
+
+  // Event handlers
+  private onOpenHandlers: (() => void)[] = [];
+  private onCloseHandlers: (() => void)[] = [];
+  private onErrorHandlers: ((error: Event) => void)[] = [];
+  private onMessageHandlers: ((data: string) => void)[] = [];
+
+  /**
+   * Connect to the WebSocket server
+   * @param url WebSocket server URL
+   */
+  public connect(url: string): void {
+    if (this.socket && this.isConnected) {
+      clientLogger.info('WebSocket already connected');
+      return;
     }
-    
+
+    this.url = url;
+
     try {
-      this.isClosing = false;
-      this.socket = new WebSocket(this.url);
-      
-      this.socket.onopen = (event) => {
-        this.reconnectAttempts = 0;
-        this.reconnectDelay = 1000;
-        clientLogger.info(`WebSocket connected for job ${this.jobId}`);
-        this.openHandler();
-      };
-      
-      this.socket.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data) as AnalysisJob;
-          this.messageHandler(data);
-        } catch (error) {
-          clientLogger.error('Error parsing WebSocket message', { error });
-        }
-      };
-      
-      this.socket.onclose = (event) => {
-        clientLogger.info(`WebSocket closed for job ${this.jobId}`, { code: event.code });
-        this.closeHandler();
-        
-        // Attempt to reconnect if it wasn't intentionally closed
-        if (!this.isClosing && !event.wasClean) {
-          this.attemptReconnect();
-        }
-      };
-      
-      this.socket.onerror = (error) => {
-        clientLogger.error(`WebSocket error for job ${this.jobId}`, { error });
-        this.errorHandler(error);
-      };
+      this.socket = new WebSocket(url);
+
+      this.socket.onopen = this.handleOpen.bind(this);
+      this.socket.onclose = this.handleClose.bind(this);
+      this.socket.onerror = this.handleError.bind(this);
+      this.socket.onmessage = this.handleMessage.bind(this);
+
+      clientLogger.info('WebSocket connecting...', { url });
     } catch (error) {
-      clientLogger.error(`Error creating WebSocket for job ${this.jobId}`, { error });
-      // Attempt to reconnect
+      clientLogger.error('WebSocket connection error', { error, url });
       this.attemptReconnect();
     }
   }
-  
-  // Disconnect from WebSocket server
+
+  /**
+   * Disconnect from the WebSocket server
+   */
   public disconnect(): void {
-    this.isClosing = true;
-    
-    if (this.reconnectTimeout) {
-      clearTimeout(this.reconnectTimeout);
-      this.reconnectTimeout = null;
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
     }
-    
+
+    if (this.pingTimer) {
+      clearInterval(this.pingTimer);
+      this.pingTimer = null;
+    }
+
     if (this.socket) {
-      // Only close if the socket is open or connecting
-      if (this.socket.readyState === WebSocket.OPEN || this.socket.readyState === WebSocket.CONNECTING) {
-        this.socket.close();
-      }
+      this.socket.close();
       this.socket = null;
+      this.isConnected = false;
+      clientLogger.info('WebSocket disconnected');
     }
   }
-  
-  // Send a message to the server
-  public send(data: any): boolean {
-    if (this.socket && this.socket.readyState === WebSocket.OPEN) {
-      this.socket.send(JSON.stringify(data));
+
+  /**
+   * Send data to the WebSocket server
+   * @param data Data to send
+   */
+  public send(data: string | object): boolean {
+    if (!this.socket || !this.isConnected) {
+      clientLogger.error('Cannot send message, WebSocket not connected');
+      return false;
+    }
+
+    try {
+      const message = typeof data === 'string' ? data : JSON.stringify(data);
+      this.socket.send(message);
       return true;
+    } catch (error) {
+      clientLogger.error('Error sending WebSocket message', { error });
+      return false;
     }
-    return false;
   }
-  
-  // Check if connected
-  public isConnected(): boolean {
-    return this.socket !== null && this.socket.readyState === WebSocket.OPEN;
+
+  /**
+   * Register handler for open event
+   * @param handler Function to call when connection is established
+   */
+  public onOpen(handler: () => void): void {
+    this.onOpenHandlers.push(handler);
   }
-  
-  // Send a ping to keep the connection alive
-  public ping(): void {
-    this.send("ping");
+
+  /**
+   * Register handler for close event
+   * @param handler Function to call when connection is closed
+   */
+  public onClose(handler: () => void): void {
+    this.onCloseHandlers.push(handler);
   }
-  
-  // Default handlers
-  private defaultErrorHandler(error: Event): void {
-    // Default is to let the error log handle it
+
+  /**
+   * Register handler for error event
+   * @param handler Function to call when an error occurs
+   */
+  public onError(handler: (error: Event) => void): void {
+    this.onErrorHandlers.push(handler);
   }
-  
-  private defaultOpenHandler(): void {
-    // Default is to do nothing
+
+  /**
+   * Register handler for message event
+   * @param handler Function to call when a message is received
+   */
+  public onMessage(handler: (data: string) => void): void {
+    this.onMessageHandlers.push(handler);
   }
-  
-  private defaultCloseHandler(): void {
-    // Default is to do nothing
+
+  /**
+   * Check if the WebSocket is connected
+   */
+  public isActive(): boolean {
+    return this.isConnected;
   }
-  
-  // Attempt to reconnect with exponential backoff
+
+  /**
+   * Handle WebSocket open event
+   */
+  private handleOpen(): void {
+    this.isConnected = true;
+    this.reconnectAttempts = 0;
+    clientLogger.info('WebSocket connected');
+
+    // Set up ping interval
+    this.setupPingInterval();
+
+    // Call all registered open handlers
+    this.onOpenHandlers.forEach((handler) => {
+      try {
+        handler();
+      } catch (error) {
+        clientLogger.error('Error in WebSocket open handler', { error });
+      }
+    });
+  }
+
+  /**
+   * Set up ping interval to keep connection alive
+   */
+  private setupPingInterval(): void {
+    // Clear any existing ping timer
+    if (this.pingTimer) {
+      clearInterval(this.pingTimer);
+      this.pingTimer = null;
+    }
+
+    // Set up ping interval to keep connection alive
+    this.pingTimer = setInterval(() => {
+      if (this.isConnected && this.socket) {
+        try {
+          this.socket.send('ping');
+          clientLogger.debug('Ping sent to WebSocket server');
+        } catch (error) {
+          clientLogger.error('Error sending ping', { error });
+          this.disconnect();
+          this.attemptReconnect();
+        }
+      } else {
+        // Socket not connected, clear ping timer
+        if (this.pingTimer) {
+          clearInterval(this.pingTimer);
+          this.pingTimer = null;
+        }
+      }
+    }, this.pingInterval);
+  }
+
+  /**
+   * Handle WebSocket close event
+   */
+  private handleClose(event: CloseEvent): void {
+    this.isConnected = false;
+    clientLogger.info('WebSocket closed', { code: event.code, reason: event.reason });
+
+    // Call all registered close handlers
+    this.onCloseHandlers.forEach((handler) => {
+      try {
+        handler();
+      } catch (error) {
+        clientLogger.error('Error in WebSocket close handler', { error });
+      }
+    });
+
+    // Attempt to reconnect if not closed intentionally
+    if (event.code !== 1000) {
+      this.attemptReconnect();
+    }
+  }
+
+  /**
+   * Handle WebSocket error event
+   */
+  private handleError(event: Event): void {
+    clientLogger.error('WebSocket error', { event });
+
+    // Call all registered error handlers
+    this.onErrorHandlers.forEach((handler) => {
+      try {
+        handler(event);
+      } catch (error) {
+        clientLogger.error('Error in WebSocket error handler', { error });
+      }
+    });
+  }
+
+  /**
+   * Handle WebSocket message event
+   */
+  private handleMessage(event: MessageEvent): void {
+    // Call all registered message handlers
+    this.onMessageHandlers.forEach((handler) => {
+      try {
+        handler(event.data);
+      } catch (error) {
+        clientLogger.error('Error in WebSocket message handler', { error, data: event.data });
+      }
+    });
+  }
+
+  /**
+   * Attempt to reconnect to the WebSocket server
+   */
   private attemptReconnect(): void {
-    if (this.isClosing || this.reconnectAttempts >= this.maxReconnectAttempts) {
-      clientLogger.info(`Max reconnection attempts reached for job ${this.jobId}`);
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+    }
+
+    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+      clientLogger.error('Max reconnect attempts reached, giving up');
       return;
     }
-    
+
     this.reconnectAttempts++;
-    const delay = Math.min(30000, this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1));
-    
-    clientLogger.info(`Attempting to reconnect in ${delay}ms (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
-    
-    this.reconnectTimeout = setTimeout(() => {
-      this.connect();
+    const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 30000);
+
+    clientLogger.info(
+      `Attempting to reconnect in ${delay}ms (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})`
+    );
+
+    this.reconnectTimer = setTimeout(() => {
+      if (this.url) {
+        this.connect(this.url);
+      }
     }, delay);
   }
-} 
+}
